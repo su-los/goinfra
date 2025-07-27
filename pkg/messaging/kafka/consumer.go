@@ -12,12 +12,13 @@ import (
 
 // Consumer Kafka 消息消费者
 type Consumer struct {
-	consumer sarama.ConsumerGroup // 消费者组
-	config   *sarama.Config
-	handlers map[string]MessageHandler // 消息处理器，key 为 topic，value 为消息处理器
-	mu       sync.RWMutex
-	ctx      context.Context
-	cancel   context.CancelFunc
+	consumer      sarama.ConsumerGroup // 消费者组
+	config        *sarama.Config
+	handlers      map[string]MessageHandler // 消息处理器，key 为 topic，value 为消息处理器
+	mu            sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
+	retryInterval time.Duration
 }
 
 // MessageHandler 消息处理函数
@@ -141,9 +142,34 @@ func (c *Consumer) UnregisterHandler(topic string) {
 	delete(c.handlers, topic)
 }
 
+// consumerStartOption 消费者启动选项
+type consumerStartOption struct {
+	retryInterval time.Duration
+}
+
+func defaultConsumerStartOption() *consumerStartOption {
+	return &consumerStartOption{
+		retryInterval: 3 * time.Second, // 处理失败时的重试间隔
+	}
+}
+
+// StartOption 消费者选项
+type StartOption func(*consumerStartOption)
+
+// WithRetryInterval 设置重试间隔
+func WithRetryInterval(interval time.Duration) StartOption {
+	return func(o *consumerStartOption) {
+		o.retryInterval = interval
+	}
+}
+
 // Start 启动消费者
-func (c *Consumer) Start(topics []string) error {
+func (c *Consumer) Start(topics []string, opts ...StartOption) error {
 	handler := &ConsumerGroupHandlerImpl{consumer: c}
+	opt := defaultConsumerStartOption()
+	for _, o := range opts {
+		o(opt)
+	}
 
 	go func() {
 		for {
@@ -153,7 +179,7 @@ func (c *Consumer) Start(topics []string) error {
 			default:
 				if err := c.consumer.Consume(c.ctx, topics, handler); err != nil {
 					log.Printf("consumer error: %v", err)
-					time.Sleep(5 * time.Second) // 重试间隔
+					time.Sleep(c.retryInterval) // 重试间隔
 				}
 			}
 		}
