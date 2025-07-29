@@ -11,7 +11,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/su-los/goinfra/pkg/messaging/kafka"
 )
 

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 )
 
 /*
@@ -294,5 +294,12 @@ func WithConsumerFetchMax(maxBytes int32) ConfigOption {
 func WithConsumerRetryBackoff(backoff time.Duration) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Consumer.Retry.Backoff = backoff
+	}
+}
+
+// WithAPIVersion 设置 API 版本
+func WithAPIVersion(version sarama.KafkaVersion) ConfigOption {
+	return func(config *sarama.Config) {
+		config.Version = version
 	}
 }
