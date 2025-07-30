@@ -223,7 +223,7 @@ func TestConsumerGroupHandlerImpl(t *testing.T) {
 	log.Printf("实际收到消息数量: %d", actualCount)
 	require.Equal(t, int32(10), actualCount, "期望收到10条消息，实际收到%d条", actualCount)
 
-	consumer.Stop()
+	require.NoError(t, consumer.Stop())
 	log.Println("测试完成")
 }
 
@@ -274,7 +274,7 @@ func TestConsumerGroupHandlerImpl_Err(t *testing.T) {
 	}
 
 	time.Sleep(6 * time.Second)
-	consumer.Stop()
+	require.NoError(t, consumer.Stop())
 	log.Println("测试完成")
 	require.Equal(t, int32(10), cnt.Load(), "期望收到10条消息，实际收到%d条", cnt.Load())
 }
