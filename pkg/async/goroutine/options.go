@@ -1,8 +1,12 @@
 package goroutine
 
 import (
+	"context"
+	"fmt"
+	"runtime/debug"
 	"time"
 
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -20,6 +24,69 @@ type goOptions struct {
 	OnError func(error)
 	// 完成回调函数
 	OnComplete func()
+}
+
+func (o *goOptions) doRecovery() {
+	if !o.EnableRecovery {
+		return
+	}
+
+	if r := recover(); r != nil {
+		err := errors.Errorf("goroutine panic: %v\n%s", r, debug.Stack())
+		if o.Logger != nil {
+			o.Logger.Error("goroutine panic recovered",
+				zap.Any("panic", r),
+				zap.String("stack", string(debug.Stack())))
+		}
+		if o.OnError != nil {
+			o.OnError(err)
+		}
+	}
+}
+
+func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
+	// 超时控制
+	if o.EnableTimeout {
+		select {
+		case err := <-done:
+			if err != nil && o.OnError != nil {
+				o.OnError(err)
+			}
+		case <-time.After(o.Timeout):
+			err := fmt.Errorf("goroutine timeout after %v", o.Timeout)
+			if o.Logger != nil {
+				o.Logger.Error("goroutine timeout",
+					zap.Duration("timeout", o.Timeout))
+			}
+			if o.OnError != nil {
+				o.OnError(err)
+			}
+		case <-ctx.Done():
+			err := ctx.Err()
+			if o.Logger != nil {
+				o.Logger.Error("goroutine context done", zap.Error(err))
+			}
+			if o.OnError != nil {
+				o.OnError(err)
+			}
+		}
+	} else {
+		// 直接执行
+		select {
+		case err := <-done:
+			if err != nil && o.OnError != nil {
+				o.OnError(err)
+			}
+		case <-ctx.Done():
+			err := ctx.Err()
+			if o.Logger != nil {
+				o.Logger.Error("goroutine context done", zap.Error(err))
+			}
+			if o.OnError != nil {
+				o.OnError(err)
+			}
+		}
+	}
 }
 
 // defaultOptions 默认选项

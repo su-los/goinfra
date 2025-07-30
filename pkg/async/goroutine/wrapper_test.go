@@ -17,6 +17,7 @@ func TestGoWithRecovery(t *testing.T) {
 	}, WithRecovery(true),
 		WithLogger(zap.NewNop()),
 		WithErrorHandler(func(err error) {
+			fmt.Println("error handler", err)
 			require.Error(t, err)
 		}))
 
@@ -118,4 +119,29 @@ func TestGoSimple(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 	require.True(t, simpleCalled)
+}
+
+func TestGoWithContextCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	Go(ctx, func() error {
+		return nil
+	}, WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+		fmt.Println("error handler", err)
+		require.Error(t, err)
+	}))
+
+	cancel()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// 带超时
+	Go(ctx, func() error {
+		time.Sleep(100 * time.Millisecond)
+		return nil
+	}, WithTimeout(50*time.Millisecond), WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+		fmt.Println("error handler", err)
+		require.Error(t, err)
+	}))
+
+	time.Sleep(150 * time.Millisecond)
 }
