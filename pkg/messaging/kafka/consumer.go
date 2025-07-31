@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -112,13 +113,18 @@ func NewConsumer(brokers []string, groupID string, opts ...ConfigOption) (*Consu
 		opt(cfg)
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// 奇怪的现象：连接 v3.9.1 的 kafka 时（IBM/sarama 版本 1.45.1），会报错，如果提前设置 sarama.Logger，就会连接报错（EOF）
+	sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags|log.Lshortfile)
 	consumer, err := sarama.NewConsumerGroup(brokers, groupID, cfg)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create consumer group")
+		return nil, errors.WithStack(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-
 	return &Consumer{
 		consumer: consumer,
 		config:   cfg,
