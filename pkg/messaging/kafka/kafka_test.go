@@ -174,7 +174,7 @@ func TestConsumerGroupHandlerImpl(t *testing.T) {
 		WithConsumerOffsetsInitial(sarama.OffsetOldest), // 从最早的消息开始消费
 		WithConsumerOffsetsAutoCommit(true),             // 启用自动提交
 		WithConsumerMaxWaitTime(1*time.Second),          // 设置最大等待时间
-		WithDialTimeout(5*time.Second),                  // 设置连接超时
+		WithNetDialTimeout(5*time.Second),               // 设置连接超时
 	)
 	require.NoError(t, err)
 	log.Println("消费者创建成功")
@@ -198,8 +198,8 @@ func TestConsumerGroupHandlerImpl(t *testing.T) {
 
 	// 启动生产者
 	producer, err := NewSyncProducer(brokers,
-		WithAPIVersion(sarama.V4_0_0_0), // 使用更低的 API 版本以兼容旧版 Kafka
-		WithDialTimeout(5*time.Second),  // 设置连接超时
+		WithAPIVersion(sarama.V4_0_0_0),   // 使用更低的 API 版本以兼容旧版 Kafka
+		WithNetDialTimeout(5*time.Second), // 设置连接超时
 	)
 	require.NoError(t, err)
 	defer producer.Close()
@@ -242,7 +242,7 @@ func TestConsumerGroupHandlerImpl_Err(t *testing.T) {
 		WithConsumerOffsetsInitial(sarama.OffsetOldest), // 从最早的消息开始消费
 		WithConsumerOffsetsAutoCommit(true),             // 启用自动提交
 		WithConsumerMaxWaitTime(1*time.Second),          // 设置最大等待时间
-		WithDialTimeout(5*time.Second),                  // 设置连接超时
+		WithNetDialTimeout(5*time.Second),               // 设置连接超时
 	)
 	require.NoError(t, err)
 	log.Println("消费者创建成功")
@@ -259,8 +259,8 @@ func TestConsumerGroupHandlerImpl_Err(t *testing.T) {
 	log.Println("消费者启动成功")
 
 	producer, err := NewSyncProducer(brokers,
-		WithAPIVersion(sarama.V4_0_0_0), // 使用更低的 API 版本以兼容旧版 Kafka
-		WithDialTimeout(5*time.Second),  // 设置连接超时
+		WithAPIVersion(sarama.V4_0_0_0),   // 使用更低的 API 版本以兼容旧版 Kafka
+		WithNetDialTimeout(5*time.Second), // 设置连接超时
 	)
 	require.NoError(t, err)
 	defer producer.Close()
