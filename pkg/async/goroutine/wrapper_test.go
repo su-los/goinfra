@@ -3,34 +3,40 @@ package goroutine
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/goleak"
 )
 
 func TestGoWithRecovery(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags|log.Llongfile)
 	// 测试 panic 恢复
 	Go(context.Background(), func() error {
 		panic("test panic")
 	}, WithRecovery(true),
-		WithLogger(zap.NewNop()),
+		WithLogger(stdLogger),
 		WithErrorHandler(func(err error) {
 			fmt.Println("error handler", err)
 			require.Error(t, err)
 		}))
 
 	// 等待 goroutine 执行
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(300 * time.Microsecond)
 }
 
 func TestGoWithTimeout(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
 	// 测试超时
 	Go(context.Background(), func() error {
 		time.Sleep(200 * time.Millisecond)
 		return nil
-	}, WithTimeout(100*time.Millisecond), WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+	}, WithTimeout(100*time.Millisecond), WithLogger(stdLogger), WithErrorHandler(func(err error) {
 		require.Error(t, err)
 	}))
 
@@ -41,7 +47,7 @@ func TestGoWithTimeout(t *testing.T) {
 	// 没有超时，正常返回成功
 	Go(context.Background(), func() error {
 		return nil
-	}, WithTimeout(100*time.Millisecond), WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+	}, WithTimeout(100*time.Millisecond), WithLogger(stdLogger), WithErrorHandler(func(err error) {
 		errorCalled = true
 	}))
 
@@ -52,7 +58,7 @@ func TestGoWithTimeout(t *testing.T) {
 	// 没有超时，返回错误
 	Go(context.Background(), func() error {
 		return fmt.Errorf("test error")
-	}, WithTimeout(100*time.Millisecond), WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+	}, WithTimeout(100*time.Millisecond), WithLogger(stdLogger), WithErrorHandler(func(err error) {
 		errorCalled = true
 	}))
 
@@ -62,11 +68,13 @@ func TestGoWithTimeout(t *testing.T) {
 }
 
 func TestGoWithError(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
 	errorCalled := false
 	// 测试错误处理
 	Go(context.Background(), func() error {
 		return fmt.Errorf("test error")
-	}, WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+	}, WithLogger(stdLogger), WithErrorHandler(func(err error) {
 		errorCalled = true
 	}))
 
@@ -79,7 +87,7 @@ func TestGoWithError(t *testing.T) {
 	Go(context.Background(), func() error {
 		time.Sleep(100 * time.Millisecond)
 		return fmt.Errorf("test error")
-	}, WithTimeout(50*time.Millisecond), WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+	}, WithTimeout(50*time.Millisecond), WithLogger(stdLogger), WithErrorHandler(func(err error) {
 		errorCalled = true
 	}))
 
@@ -88,10 +96,12 @@ func TestGoWithError(t *testing.T) {
 }
 
 func TestGoWithCompleteHandler(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	completeCalled := false
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
 	Go(context.Background(), func() error {
 		return nil
-	}, WithLogger(zap.NewNop()), WithCompleteHandler(func() {
+	}, WithLogger(stdLogger), WithCompleteHandler(func() {
 		completeCalled = true
 	}))
 
@@ -100,10 +110,12 @@ func TestGoWithCompleteHandler(t *testing.T) {
 }
 
 func TestGoWithContext(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	completeCalled := false
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
 	GoWithContext(context.Background(), func(ctx context.Context) error {
 		return nil
-	}, WithLogger(zap.NewNop()), WithCompleteHandler(func() {
+	}, WithLogger(stdLogger), WithCompleteHandler(func() {
 		completeCalled = true
 	}))
 
@@ -112,20 +124,24 @@ func TestGoWithContext(t *testing.T) {
 }
 
 func TestGoSimple(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	simpleCalled := false
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
 	GoSimple(context.Background(), func() {
 		simpleCalled = true
-	}, WithLogger(zap.NewNop()))
+	}, WithLogger(stdLogger))
 
 	time.Sleep(100 * time.Millisecond)
 	require.True(t, simpleCalled)
 }
 
 func TestGoWithContextCancel(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
 	ctx, cancel := context.WithCancel(context.Background())
 	Go(ctx, func() error {
 		return nil
-	}, WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+	}, WithLogger(stdLogger), WithErrorHandler(func(err error) {
 		fmt.Println("error handler", err)
 		require.Error(t, err)
 	}))
@@ -138,7 +154,7 @@ func TestGoWithContextCancel(t *testing.T) {
 	Go(ctx, func() error {
 		time.Sleep(100 * time.Millisecond)
 		return nil
-	}, WithTimeout(50*time.Millisecond), WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+	}, WithTimeout(50*time.Millisecond), WithLogger(stdLogger), WithErrorHandler(func(err error) {
 		fmt.Println("error handler", err)
 		require.Error(t, err)
 	}))

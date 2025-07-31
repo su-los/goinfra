@@ -4,7 +4,6 @@ import (
 	"runtime/debug"
 
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 // Pool goroutine 池
@@ -51,9 +50,7 @@ func (p *Pool) worker() {
 					if r := recover(); r != nil {
 						err := errors.Errorf("worker panic: %v\n%s", r, debug.Stack())
 						if p.opts.Logger != nil {
-							p.opts.Logger.Error("worker panic recovered",
-								zap.Any("panic", r),
-								zap.String("stack", string(debug.Stack())))
+							p.opts.Logger.Printf("[ERROR] worker panic recovered: %v\nstack: %s", r, debug.Stack())
 						}
 						if p.opts.OnError != nil {
 							p.opts.OnError(err)
@@ -78,7 +75,7 @@ func (p *Pool) SubmitWithError(job func() error) {
 	p.jobQueue <- func() {
 		if err := job(); err != nil {
 			if p.opts.Logger != nil {
-				p.opts.Logger.Error("pool job error", zap.Error(err))
+				p.opts.Logger.Printf("[ERROR] pool job error: %v", err)
 			}
 			if p.opts.OnError != nil {
 				p.opts.OnError(err)

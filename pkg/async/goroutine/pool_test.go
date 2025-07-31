@@ -2,19 +2,23 @@ package goroutine
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/goleak"
 )
 
 func TestPool(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	errCalled := false
-	pool := NewPool(2, WithRecovery(true), WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
+	pool := NewPool(2, WithRecovery(true), WithLogger(stdLogger), WithErrorHandler(func(err error) {
 		errCalled = true
 		require.Error(t, err)
 	}))
@@ -36,8 +40,10 @@ func TestPool(t *testing.T) {
 }
 
 func TestPool_OnComplete(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	completeCalled := false
-	pool := NewPool(2, WithRecovery(true), WithLogger(zap.NewNop()), WithCompleteHandler(func() {
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
+	pool := NewPool(2, WithRecovery(true), WithLogger(stdLogger), WithCompleteHandler(func() {
 		completeCalled = true
 	}))
 	defer pool.Close()
@@ -51,8 +57,10 @@ func TestPool_OnComplete(t *testing.T) {
 }
 
 func TestPool_SubmitWithError(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	errCalled := false
-	pool := NewPool(2, WithRecovery(true), WithLogger(zap.NewNop()), WithErrorHandler(func(err error) {
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
+	pool := NewPool(2, WithRecovery(true), WithLogger(stdLogger), WithErrorHandler(func(err error) {
 		errCalled = true
 		require.Error(t, err)
 	}))
@@ -68,7 +76,9 @@ func TestPool_SubmitWithError(t *testing.T) {
 
 // 测试多协程异步获取 workerCount、QueueSize、QueueCapacity
 func TestPool_AsyncGet(t *testing.T) {
-	pool := NewPool(2, WithRecovery(true), WithLogger(zap.NewNop()))
+	defer goleak.VerifyNone(t)
+	stdLogger := log.New(os.Stdout, "", log.LstdFlags)
+	pool := NewPool(2, WithRecovery(true), WithLogger(stdLogger))
 	defer pool.Close()
 
 	const cnt = 120

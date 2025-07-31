@@ -3,12 +3,23 @@ package goroutine
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"runtime/debug"
 	"time"
 
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
+
+// Logger 用于记录错误信息以及关键信息到日志
+type Logger interface {
+	Fatal(v ...any)
+	Fatalf(format string, v ...any)
+	Fatalln(v ...any)
+	Print(v ...any)
+	Printf(format string, v ...any)
+	Println(v ...any)
+}
 
 // options goroutine 包装器选项
 type goOptions struct {
@@ -19,7 +30,7 @@ type goOptions struct {
 	// 超时时间
 	Timeout time.Duration
 	// 日志记录器
-	Logger *zap.Logger
+	Logger Logger
 	// 错误回调函数
 	OnError func(error)
 	// 完成回调函数
@@ -34,9 +45,7 @@ func (o *goOptions) doRecovery() {
 	if r := recover(); r != nil {
 		err := errors.Errorf("goroutine panic: %v\n%s", r, debug.Stack())
 		if o.Logger != nil {
-			o.Logger.Error("goroutine panic recovered",
-				zap.Any("panic", r),
-				zap.String("stack", string(debug.Stack())))
+			o.Logger.Printf("[ERROR] goroutine panic recovered: %v\nstack: %s", r, string(debug.Stack()))
 		}
 		if o.OnError != nil {
 			o.OnError(err)
@@ -48,23 +57,25 @@ func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
 	// 超时控制
 	if o.EnableTimeout {
 		select {
-		case err := <-done:
+		case err, ok := <-done:
+			if !ok {
+				// 外层发生了 panic，done channel 被提前关闭
+				o.Logger.Printf("[ERROR] goroutine done channel closed")
+				return
+			}
 			if err != nil && o.OnError != nil {
 				o.OnError(err)
 			}
 		case <-time.After(o.Timeout):
 			err := fmt.Errorf("goroutine timeout after %v", o.Timeout)
-			if o.Logger != nil {
-				o.Logger.Error("goroutine timeout",
-					zap.Duration("timeout", o.Timeout))
-			}
+			o.Logger.Printf("[ERROR] goroutine timeout after %v", o.Timeout)
 			if o.OnError != nil {
 				o.OnError(err)
 			}
 		case <-ctx.Done():
 			err := ctx.Err()
 			if o.Logger != nil {
-				o.Logger.Error("goroutine context done", zap.Error(err))
+				o.Logger.Printf("[ERROR] goroutine context done: %v", err)
 			}
 			if o.OnError != nil {
 				o.OnError(err)
@@ -73,15 +84,18 @@ func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
 	} else {
 		// 直接执行
 		select {
-		case err := <-done:
+		case err, ok := <-done:
+			// 外层发生了 panic，done channel 被提前关闭
+			if !ok {
+				o.Logger.Printf("[ERROR] goroutine done channel closed")
+				return
+			}
 			if err != nil && o.OnError != nil {
 				o.OnError(err)
 			}
 		case <-ctx.Done():
 			err := ctx.Err()
-			if o.Logger != nil {
-				o.Logger.Error("goroutine context done", zap.Error(err))
-			}
+			o.Logger.Printf("[ERROR] goroutine context done: %v", err)
 			if o.OnError != nil {
 				o.OnError(err)
 			}
@@ -95,7 +109,7 @@ func defaultOptions() *goOptions {
 		EnableRecovery: true,
 		EnableTimeout:  false,
 		Timeout:        30 * time.Second,
-		Logger:         nil,
+		Logger:         log.New(os.Stdout, "", log.LstdFlags),
 		OnError:        nil,
 		OnComplete:     nil,
 	}
@@ -119,7 +133,7 @@ func WithTimeout(timeout time.Duration) Option {
 }
 
 // WithLogger 设置日志记录器
-func WithLogger(logger *zap.Logger) Option {
+func WithLogger(logger Logger) Option {
 	return func(o *goOptions) {
 		o.Logger = logger
 	}

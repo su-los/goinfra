@@ -28,6 +28,9 @@ func innerGo(ctx context.Context, fn func() error, goOpt *goOptions) {
 
 		done := make(chan error, 1)
 		go func() {
+			// 确保在 doSelect 完成后关闭 done channel 以避免泄漏
+			defer close(done)
+			// 先恢复 panic，再 close done channel
 			defer goOpt.doRecovery()
 			done <- fn()
 		}()
