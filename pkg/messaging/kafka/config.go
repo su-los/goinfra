@@ -13,16 +13,23 @@ import (
 基础配置
 - Brokers []string // Kafka 集群地址列表
 
-连接配置
+Metadata 元数据配置
+- Full bool // 是否启用全量元数据
+- Timeout time.Duration // 元数据获取超时时间
+- Retry.Max int // 最大重试次数
+- Retry.Backoff time.Duration // 重试间隔时间
+
+Net 连接配置
 - ClientID     string        // 客户端标识
 - DialTimeout  time.Duration // 连接超时时间
 - ReadTimeout  time.Duration // 读取超时时间
 - WriteTimeout time.Duration // 写入超时时间
 
-认证配置
+Net 认证配置
 - Username  string // SASL 用户名
 - Password  string // SASL 密码
 - Mechanism string // SASL 机制 (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512)
+- Enable     bool   // 是否启用 SASL 认证
 
 TLS 配置
 - TLSEnabled  bool   // 是否启用 TLS
@@ -60,6 +67,20 @@ TLS 配置
 // ConfigOption 配置选项
 type ConfigOption func(config *sarama.Config)
 
+// WithConfig 直接设置配置，会覆盖其他配置
+func WithConfig(cfg *sarama.Config) ConfigOption {
+	return func(config *sarama.Config) {
+		*config = *cfg
+	}
+}
+
+// WithAPIVersion 设置 API 版本
+func WithAPIVersion(version sarama.KafkaVersion) ConfigOption {
+	return func(config *sarama.Config) {
+		config.Version = version
+	}
+}
+
 // WithClientID 设置客户端标识
 func WithClientID(clientID string) ConfigOption {
 	return func(config *sarama.Config) {
@@ -67,57 +88,92 @@ func WithClientID(clientID string) ConfigOption {
 	}
 }
 
-// WithDialTimeout 设置连接超时时间
-func WithDialTimeout(dialTimeout time.Duration) ConfigOption {
+// WithMetadataFull 设置是否启用全量元数据
+func WithMetadataFull(full bool) ConfigOption {
+	return func(config *sarama.Config) {
+		config.Metadata.Full = full
+	}
+}
+
+// WithMetadataTimeout 设置元数据获取超时时间
+func WithMetadataTimeout(timeout time.Duration) ConfigOption {
+	return func(config *sarama.Config) {
+		config.Metadata.Timeout = timeout
+	}
+}
+
+// WithMetadataRetryMax 设置元数据获取最大重试次数
+func WithMetadataRetryMax(retryMax int) ConfigOption {
+	return func(config *sarama.Config) {
+		config.Metadata.Retry.Max = retryMax
+	}
+}
+
+// WithMetadataRetryBackoff 设置元数据获取重试间隔时间
+func WithMetadataRetryBackoff(retryBackoff time.Duration) ConfigOption {
+	return func(config *sarama.Config) {
+		config.Metadata.Retry.Backoff = retryBackoff
+	}
+}
+
+// WithNetDialTimeout 设置连接超时时间
+func WithNetDialTimeout(dialTimeout time.Duration) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Net.DialTimeout = dialTimeout
 	}
 }
 
-// WithReadTimeout 设置读取超时时间
-func WithReadTimeout(readTimeout time.Duration) ConfigOption {
+// WithNetReadTimeout 设置读取超时时间
+func WithNetReadTimeout(readTimeout time.Duration) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Net.ReadTimeout = readTimeout
 	}
 }
 
-// WithWriteTimeout 设置写入超时时间
-func WithWriteTimeout(writeTimeout time.Duration) ConfigOption {
+// WithNetWriteTimeout 设置写入超时时间
+func WithNetWriteTimeout(writeTimeout time.Duration) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Net.WriteTimeout = writeTimeout
 	}
 }
 
-// WithUsername 设置 SASL 用户名
-func WithUsername(username string) ConfigOption {
+// WithNetSASLUsername 设置 SASL 用户名
+func WithNetSASLUsername(username string) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Net.SASL.User = username
 	}
 }
 
-// WithPassword 设置 SASL 密码
-func WithPassword(password string) ConfigOption {
+// WithNetSASLPassword 设置 SASL 密码
+func WithNetSASLPassword(password string) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Net.SASL.Password = password
 	}
 }
 
-// WithMechanism 设置 SASL 机制
-func WithMechanism(mechanism sarama.SASLMechanism) ConfigOption {
+// WithNetSASLMechanism 设置 SASL 机制
+func WithNetSASLMechanism(mechanism sarama.SASLMechanism) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Net.SASL.Mechanism = mechanism
 	}
 }
 
-// WithTLSEnabled 设置 TLS 是否启用
-func WithTLSEnabled(enabled bool) ConfigOption {
+// WithNetSASLEnable 是否启用 SASL 认证
+func WithNetSASLEnable(enable bool) ConfigOption {
+	return func(config *sarama.Config) {
+		config.Net.SASL.Enable = enable
+	}
+}
+
+// WithNetTLSEnabled 设置 TLS 是否启用
+func WithNetTLSEnabled(enabled bool) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Net.TLS.Enable = enabled
 	}
 }
 
-// WithTLSCAFile 设置 TLS CA 证书文件
-func WithTLSCAFile(caFile string) ConfigOption {
+// WithNetTLSCAFile 设置 TLS CA 证书文件
+func WithNetTLSCAFile(caFile string) ConfigOption {
 	return func(config *sarama.Config) {
 		caCert, err := os.ReadFile(caFile)
 		if err != nil {
@@ -128,8 +184,8 @@ func WithTLSCAFile(caFile string) ConfigOption {
 	}
 }
 
-// WithTLSCertFile 设置 TLS 客户端证书文件路径
-func WithTLSCertFile(certFile, keyFile string) ConfigOption {
+// WithNetTLSCertFile 设置 TLS 客户端证书文件路径
+func WithNetTLSCertFile(certFile, keyFile string) ConfigOption {
 	return func(config *sarama.Config) {
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
@@ -139,8 +195,8 @@ func WithTLSCertFile(certFile, keyFile string) ConfigOption {
 	}
 }
 
-// WithTLSKeyFile 设置 TLS 客户端私钥文件路径
-func WithTLSKeyFile(certFile, keyFile string) ConfigOption {
+// WithNetTLSKeyFile 设置 TLS 客户端私钥文件路径
+func WithNetTLSKeyFile(certFile, keyFile string) ConfigOption {
 	return func(config *sarama.Config) {
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
@@ -294,12 +350,5 @@ func WithConsumerFetchMax(maxBytes int32) ConfigOption {
 func WithConsumerRetryBackoff(backoff time.Duration) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Consumer.Retry.Backoff = backoff
-	}
-}
-
-// WithAPIVersion 设置 API 版本
-func WithAPIVersion(version sarama.KafkaVersion) ConfigOption {
-	return func(config *sarama.Config) {
-		config.Version = version
 	}
 }
