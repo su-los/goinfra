@@ -45,7 +45,7 @@ func (o *goOptions) doRecovery() {
 	if r := recover(); r != nil {
 		err := errors.Errorf("goroutine panic: %v\n%s", r, debug.Stack())
 		if o.Logger != nil {
-			o.Logger.Printf("[ERROR] goroutine panic recovered: %v\nstack: %s", r, string(debug.Stack()))
+			o.Logger.Printf("goroutine panic recovered: %v\nstack: %s", r, string(debug.Stack()))
 		}
 		if o.OnError != nil {
 			o.OnError(err)
@@ -60,7 +60,7 @@ func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
 		case err, ok := <-done:
 			if !ok {
 				// 外层发生了 panic，done channel 被提前关闭
-				o.Logger.Printf("[ERROR] goroutine done channel closed")
+				o.Logger.Printf("goroutine done channel closed")
 				return
 			}
 			if err != nil && o.OnError != nil {
@@ -68,14 +68,14 @@ func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
 			}
 		case <-time.After(o.Timeout):
 			err := fmt.Errorf("goroutine timeout after %v", o.Timeout)
-			o.Logger.Printf("[ERROR] goroutine timeout after %v", o.Timeout)
+			o.Logger.Printf("goroutine timeout after %v", o.Timeout)
 			if o.OnError != nil {
 				o.OnError(err)
 			}
 		case <-ctx.Done():
 			err := ctx.Err()
 			if o.Logger != nil {
-				o.Logger.Printf("[ERROR] goroutine context done: %v", err)
+				o.Logger.Printf("goroutine context done: %v", err)
 			}
 			if o.OnError != nil {
 				o.OnError(err)
@@ -87,7 +87,7 @@ func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
 		case err, ok := <-done:
 			// 外层发生了 panic，done channel 被提前关闭
 			if !ok {
-				o.Logger.Printf("[ERROR] goroutine done channel closed")
+				o.Logger.Printf("goroutine done channel closed")
 				return
 			}
 			if err != nil && o.OnError != nil {
@@ -95,7 +95,7 @@ func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
 			}
 		case <-ctx.Done():
 			err := ctx.Err()
-			o.Logger.Printf("[ERROR] goroutine context done: %v", err)
+			o.Logger.Printf("goroutine context done: %v", err)
 			if o.OnError != nil {
 				o.OnError(err)
 			}
@@ -109,7 +109,7 @@ func defaultOptions() *goOptions {
 		EnableRecovery: true,
 		EnableTimeout:  false,
 		Timeout:        30 * time.Second,
-		Logger:         log.New(os.Stdout, "", log.LstdFlags),
+		Logger:         log.New(os.Stderr, "", log.LstdFlags),
 		OnError:        nil,
 		OnComplete:     nil,
 	}

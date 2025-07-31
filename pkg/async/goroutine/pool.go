@@ -50,7 +50,7 @@ func (p *Pool) worker() {
 					if r := recover(); r != nil {
 						err := errors.Errorf("worker panic: %v\n%s", r, debug.Stack())
 						if p.opts.Logger != nil {
-							p.opts.Logger.Printf("[ERROR] worker panic recovered: %v\nstack: %s", r, debug.Stack())
+							p.opts.Logger.Printf("worker panic recovered: %v\nstack: %s", r, debug.Stack())
 						}
 						if p.opts.OnError != nil {
 							p.opts.OnError(err)
@@ -75,7 +75,7 @@ func (p *Pool) SubmitWithError(job func() error) {
 	p.jobQueue <- func() {
 		if err := job(); err != nil {
 			if p.opts.Logger != nil {
-				p.opts.Logger.Printf("[ERROR] pool job error: %v", err)
+				p.opts.Logger.Printf("pool job error: %v", err)
 			}
 			if p.opts.OnError != nil {
 				p.opts.OnError(err)
