@@ -103,7 +103,7 @@ func NewConsumer(brokers []string, groupID string, opts ...ConfigOption) (*Consu
 	cfg := sarama.NewConfig()
 
 	// 设置默认配置
-	cfg.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRoundRobin()
+	cfg.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRoundRobin()}
 	cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
 	cfg.Consumer.Offsets.AutoCommit.Enable = true
 	cfg.Consumer.Offsets.AutoCommit.Interval = 1 * time.Second
