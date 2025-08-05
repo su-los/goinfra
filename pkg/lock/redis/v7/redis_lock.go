@@ -1,3 +1,4 @@
+// Package redis 实现 Redis 分布式锁（v7版本）
 package redis
 
 import (

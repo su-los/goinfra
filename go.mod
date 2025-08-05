@@ -4,7 +4,6 @@ go 1.22
 
 require (
 	github.com/IBM/sarama v1.45.1
-	github.com/agiledragon/gomonkey/v2 v2.13.0
 	github.com/bsm/redislock v0.5.0
 	github.com/go-redis/redis/v7 v7.4.1
 	github.com/go-redis/redis/v8 v8.11.5
