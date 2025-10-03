@@ -5,17 +5,20 @@ import (
 	"context"
 )
 
-// Go 启动一个安全的 goroutine
-func Go(ctx context.Context, fn func() error, opts ...Option) {
+// Go 启动一个安全的 goroutine.
+func Go(ctx context.Context, handler func() error, opts ...Option) {
 	goOpt := defaultOptions()
 	for _, o := range opts {
+		if o == nil {
+			continue
+		}
 		o(goOpt)
 	}
 
-	innerGo(ctx, fn, goOpt)
+	innerGo(ctx, handler, goOpt)
 }
 
-func innerGo(ctx context.Context, fn func() error, goOpt *goOptions) {
+func innerGo(ctx context.Context, handler func() error, goOpt *goOptions) {
 	go func() {
 		defer func() {
 			if goOpt.OnComplete != nil {
@@ -32,24 +35,25 @@ func innerGo(ctx context.Context, fn func() error, goOpt *goOptions) {
 			defer close(done)
 			// 先恢复 panic，再 close done channel
 			defer goOpt.doRecovery()
-			done <- fn()
+			done <- handler()
 		}()
 
 		goOpt.doSelect(ctx, done)
 	}()
 }
 
-// GoWithContext 启动一个带上下文的 goroutine
-func GoWithContext(ctx context.Context, fn func(context.Context) error, opts ...Option) {
+// GoWithContext 启动一个带上下文的 goroutine.
+func GoWithContext(ctx context.Context, handler func(context.Context) error, opts ...Option) {
 	Go(ctx, func() error {
-		return fn(ctx)
+		return handler(ctx)
 	}, opts...)
 }
 
-// GoSimple 启动一个简单的 goroutine（无返回值）
-func GoSimple(ctx context.Context, fn func(), opts ...Option) {
+// GoSimple 启动一个简单的 goroutine（无返回值）.
+func GoSimple(ctx context.Context, handler func(), opts ...Option) {
 	Go(ctx, func() error {
-		fn()
+		handler()
+
 		return nil
 	}, opts...)
 }
