@@ -52,7 +52,8 @@ TLS 配置
 - Partitioner sarama.PartitionerConstructor // 分区策略构造函数
 
 消费者组配置
-- ConsumerGroupRebalanceStrategy sarama.BalanceStrategy // 消费者组重平衡策略
+- ConsumerGroupRebalanceStrategy sarama.BalanceStrategy // 消费者组重平衡策略（已废弃）
+- ConsumerGroupRebalanceStrategies []sarama.BalanceStrategy // 消费者组重平衡策略
 - ConsumerOffsetsInitial int64 // 消费者偏移量初始位置
 - ConsumerOffsetsAutoCommit bool // 是否自动提交偏移量
 - ConsumerOffsetsAutoCommitInterval time.Duration // 自动提交间隔
@@ -287,6 +288,13 @@ func WithProducerPartitioner(partitioner sarama.PartitionerConstructor) ConfigOp
 func WithConsumerGroupRebalanceStrategy(strategy sarama.BalanceStrategy) ConfigOption {
 	return func(config *sarama.Config) {
 		config.Consumer.Group.Rebalance.Strategy = strategy
+	}
+}
+
+// WithConsumerGroupRebalanceStrategies 设置消费者组重平衡策略
+func WithConsumerGroupRebalanceStrategies(strategies []sarama.BalanceStrategy) ConfigOption {
+	return func(config *sarama.Config) {
+		config.Consumer.Group.Rebalance.GroupStrategies = strategies
 	}
 }
 
