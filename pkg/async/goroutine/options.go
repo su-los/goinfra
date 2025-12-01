@@ -42,6 +42,7 @@ func (o *goOptions) doRecovery() {
 		return
 	}
 
+	//nolint:revive // recover 的包装函数，外部 defer 调用
 	if r := recover(); r != nil {
 		err := errors.Errorf("goroutine panic: %v\n%s", r, debug.Stack())
 		if o.Logger != nil {
