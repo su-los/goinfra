@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Logger 用于记录错误信息以及关键信息到日志
+// Logger 用于记录错误信息以及关键信息到日志.
 type Logger interface {
 	Fatal(v ...any)
 	Fatalf(format string, v ...any)
@@ -21,7 +21,7 @@ type Logger interface {
 	Println(v ...any)
 }
 
-// options goroutine 包装器选项
+// options goroutine 包装器选项.
 type goOptions struct {
 	// 是否启用 panic 恢复
 	EnableRecovery bool
@@ -42,6 +42,7 @@ func (o *goOptions) doRecovery() {
 		return
 	}
 
+	//nolint:revive // recover 的包装函数，外部 defer 调用
 	if r := recover(); r != nil {
 		err := errors.Errorf("goroutine panic: %v\n%s", r, debug.Stack())
 		if o.Logger != nil {
@@ -61,6 +62,7 @@ func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
 			if !ok {
 				// 外层发生了 panic，done channel 被提前关闭
 				o.Logger.Printf("goroutine done channel closed")
+
 				return
 			}
 			if err != nil && o.OnError != nil {
@@ -88,6 +90,7 @@ func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
 			// 外层发生了 panic，done channel 被提前关闭
 			if !ok {
 				o.Logger.Printf("goroutine done channel closed")
+
 				return
 			}
 			if err != nil && o.OnError != nil {
@@ -103,7 +106,7 @@ func (o *goOptions) doSelect(ctx context.Context, done <-chan error) {
 	}
 }
 
-// defaultOptions 默认选项
+// defaultOptions 默认选项.
 func defaultOptions() *goOptions {
 	return &goOptions{
 		EnableRecovery: true,
@@ -117,14 +120,14 @@ func defaultOptions() *goOptions {
 
 type Option func(*goOptions)
 
-// WithRecovery 启用 panic 恢复
+// WithRecovery 启用 panic 恢复.
 func WithRecovery(enable bool) Option {
 	return func(o *goOptions) {
 		o.EnableRecovery = enable
 	}
 }
 
-// WithTimeout 启用超时控制
+// WithTimeout 启用超时控制.
 func WithTimeout(timeout time.Duration) Option {
 	return func(o *goOptions) {
 		o.EnableTimeout = true
@@ -132,21 +135,21 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithLogger 设置日志记录器
+// WithLogger 设置日志记录器.
 func WithLogger(logger Logger) Option {
 	return func(o *goOptions) {
 		o.Logger = logger
 	}
 }
 
-// WithErrorHandler 设置错误处理函数
+// WithErrorHandler 设置错误处理函数.
 func WithErrorHandler(handler func(error)) Option {
 	return func(o *goOptions) {
 		o.OnError = handler
 	}
 }
 
-// WithCompleteHandler 设置完成处理函数
+// WithCompleteHandler 设置完成处理函数.
 func WithCompleteHandler(handler func()) Option {
 	return func(o *goOptions) {
 		o.OnComplete = handler

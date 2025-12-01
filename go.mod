@@ -5,6 +5,7 @@ go 1.22
 require (
 	github.com/IBM/sarama v1.45.1
 	github.com/bsm/redislock v0.5.0
+	github.com/go-kratos/kratos v1.0.1
 	github.com/go-redis/redis/v7 v7.4.1
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/go-redis/redismock/v7 v7.0.5

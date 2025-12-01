@@ -1,0 +1,576 @@
+version: "2"
+run:
+  timeout: 5m
+  concurrency: 10
+  go: '1.23'
+  allow-parallel-runners: true
+  tests: false
+
+output:
+  formats:
+    html:
+      path: ci.html
+    text:
+      path: stdout
+      print-issued-lines: true
+      print-linter-name: true
+
+linters:
+  enable:
+    # Enabled by default (listing for clarity and if settings are applied)
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    # Disabled by default (selectively enabled based on the style guide)
+    - revive
+    - gocritic
+    - lll
+    - funlen
+    - nestif
+    - mnd # Renamed from gomnd
+    - errorlint # Renamed from errlint
+    - gosec
+    - godot
+    - contextcheck
+    - nolintlint
+    - forbidigo # Enable with caution if strict prohibitions are desired
+    - bodyclose # Rule 2.5.2 (HTTP response body)
+    - gocyclo # Rule 2.1.6 (Cyclomatic Complexity)
+    - rowserrcheck # Rule 4.x (Database error checking)
+    - sqlclosecheck # Rule 2.1.5.1, 4.x (Database resource closing)
+    - nilnil # Rule 2.1.5.1 (Error return independent of other vars)
+    - forcetypeassert # Rule 2.1.7 (Always use comma-ok for type assertions)
+    - loggercheck # Rule 2.1.5.1 (Logging original error with zap)
+    - noctx
+    - depguard
+    - errcheck
+  exclusions:
+    rules:
+      - path: pkg/
+        linters:
+          - unused
+      # Rule 2.1.6: "由于单测文件内的函数都是不对外的，所有可导出函数可以没有注释"
+      - path: _test\.go
+        linters:
+          - revive
+          - errcheck
+          - gocritic
+          - lll
+          - funlen
+          - gosec
+          - gci
+          - gofmt
+          - gofumpt
+          - goimports
+          - unused
+          - staticcheck
+          - depguard
+          - govet
+          - gocyclo
+      - path: service/clienttest/
+        linters:
+          - unused
+          - govet
+      - path: service/internal/infrastructure/third_client/goplus/
+        linters:
+          - lll
+      # 允许特定目录使用 gorm
+      - path: ".*/model/.*"
+        linters:
+          - depguard
+        text: "gorm"
+      - path: ".*/models/.*"
+        linters:
+          - depguard
+        text: "gorm"
+      - path: ".*/dao/.*"
+        linters:
+          - depguard
+        text: "gorm"
+      - path: ".*/repository/.*"
+        linters:
+          - depguard
+        text: "gorm"
+      - path: ".*/internal/data/.*"  # 如果你使用 go-zero 的 data 目录
+        linters:
+          - depguard
+        text: "gorm"
+      # 允许基础工具库使用 interface{}（Rule 2.5.1: "除了基础工具库中的函数"）
+      - path: service/internal/domain/constants/
+        linters:
+          - forbidigo
+          - mnd
+      - path: ".*/pkg/.*"
+        linters:
+          - forbidigo
+          - mnd
+        text: "interface{} parameter type is prohibited"
+      - path: ".*/utils/.*"
+        linters:
+          - forbidigo
+          - mnd
+        text: "utils not need check"
+      - path: service/internal/util
+        linters:
+          - mnd
+      # 允许测试文件使用 interface{}
+      - path: "_test\\.go$"
+        linters:
+          - forbidigo
+          - mnd
+        text: "interface{} parameter type is prohibited"
+      # 允许 main 包使用 panic（Rule 2.1.5.2: "在 main 包中只有当完全不可运行的情况可使用 panic"）
+      - path: ".*/main\\.go$"
+        linters:
+          - forbidigo
+        text: "panic is prohibited"
+      - path: ".*/cmd/.*/main\\.go$"
+        linters:
+          - forbidigo
+        text: "panic is prohibited"
+      - path: ".*/translate/.*"
+        linters:
+          - forbidigo
+        text: "interface{} parameter type is prohibited"
+  settings:
+    errcheck: # Enabled by default
+      # Rule 2.1.5.1: "error 作为函数的值返回，必须对 error 进行处理... 对于 defer xx.Close()可以不用显式处理。"
+      # Rule 2.1.7: Type assertion comma ok (partially covered here if assertions return error)
+      check-type-assertions: true # Checks type assertions generating an error
+      exclude-functions:
+        - fmt.Errorf # Handled by errorlint
+        - fmt.Sprintf # Handled by errorlint
+        - fmt.Errorf # Handled by errorlint
+        - fmt.Print # Handled by errorlint
+        - fmt.Println # Handled by errorlint
+        - fmt.Printf # Handled by errorlint
+        - log.Print # Handled by errorlint
+        - log.Println # Handled by errorlint
+        - log.Printf # Handled by errorlint
+        - (io.Closer).Close # Handled by sqlclosecheck
+    govet: # Enabled by default
+      enable-all: true # Vet examines Go source code and reports suspicious constructs.
+      # disable: # Example: disable a specific analyzer if needed
+      #   - fieldalignment
+      disable:
+        - fieldalignment # too strict
+        - shadow
+      # Settings per analyzer.
+    revive: # Disabled by default
+      rules:
+        - name: add-constant # Magic Number
+          disabled: true
+
+        - name: argument-limit
+          severity: error
+          disabled: false
+
+          arguments: [ 5 ]
+        - name: atomic
+          disabled: false
+
+        - name: bare-return
+          disabled: false
+
+        - name: blank-imports
+          disabled: false
+
+        - name: call-to-gc
+          severity: error
+          disabled: false
+
+        - name: confusing-naming
+          disabled: true
+
+        - name: confusing-results
+          severity: error
+          disabled: false
+
+        - name: constant-logical-expr
+          disabled: false
+
+        - name: context-as-argument
+          severity: error
+          disabled: false
+
+          arguments:
+            - allow-types-before: "*testing.T"
+        - name: datarace
+          severity: error
+          disabled: false
+
+        - name: deep-exit
+          severity: error
+          disabled: false
+
+        - name: defer
+          severity: error
+          disabled: false
+
+          arguments:
+            - - "call-chain"
+              - "loop"
+              - "method-call"
+              - "recover"
+              - "return"
+        - name: early-return
+          severity: error
+          disabled: true
+          arguments:
+            - "preserve-scope"
+            - "allowJump"
+        - name: error-naming
+          disabled: false
+
+        - name: error-return
+          disabled: false
+
+        - name: error-strings
+          disabled: false
+
+        - name: errorf
+          disabled: false
+
+        - name: exported
+          disabled: true
+
+          arguments:
+            - "check-private-receivers"
+            - "disable-stuttering-check"
+            - "say-repetitive-instead-of-stutters"
+            - "check-public-interface"
+            - "disable-checks-on-constants"
+            - "disable-checks-on-functions"
+            - "disable-checks-on-methods"
+            - "disable-checks-on-types"
+            - "disable-checks-on-variables"
+        - name: file-length-limit
+          severity: error
+          disabled: false
+
+          arguments:
+            - max: 1000 # File length limit in lines
+              skip-comments: true
+              skip-blank-lines: true
+        - name: filename-format
+          disabled: true
+
+          arguments:
+            - "^[_a-z][_a-z0-9]*\\.go$"
+        - name: flag-parameter
+          disabled: true
+
+        - name: function-length
+          disabled: false
+
+          arguments: [ 80, 0 ]
+        - name: function-result-limit
+          disabled: false
+
+          arguments: [ 3 ]
+        - name: identical-branches
+          severity: error
+          disabled: false
+
+        - name: if-return
+          disabled: true
+
+        - name: import-alias-naming
+          severity: error
+          disabled: true
+
+          arguments:
+            - "^[a-z][a-z0-9]{0,}$"
+            # Or this parameter:
+            - allow-regex: "^[a-z][a-z0-9]{0,}$"
+              deny-regex: '^v\d+$'
+        - name: line-length-limit
+          disabled: true
+        - name: max-control-nesting
+          severity: error
+          disabled: false
+
+        - name: package-comments
+          disabled: true
+
+        - name: range
+          disabled: false
+
+        - name: unchecked-type-assertion
+          severity: error
+          disabled: false
+
+          arguments:
+            - accept-ignored-assertion-result: true
+        - name: unconditional-recursion
+          severity: error
+          disabled: false
+
+        - name: unhandled-error
+          disabled: false
+          arguments:
+            - '^fmt\.Print(f|ln)?$'
+            - '^log\.(Print|Printf|Println|Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln)$'
+            - '^os\.(Exit|Chdir|Chmod|Mkdir|MkdirAll|Remove|RemoveAll|Rename)$'
+            - '^io\.(Copy|CopyN|ReadAll|ReadDir|WriteString)$'
+            - '^bufio\.(NewReader|NewWriter|NewScanner)$'
+            - '^bytes\.(Buffer|Reader|Writer)\.(Write|WriteString)'
+            - '.*Write.*'
+        - name: use-any
+          disabled: true
+
+        - name: waitgroup-by-value
+          severity: error
+          disabled: false
+
+    gocritic: # Disabled by default
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - experimental
+        - opinionated
+      settings:
+        ifElseChain:
+          minThreshold: 4
+        rangeValCopy:
+          sizeThreshold: 256
+      disabled-checks:
+        - whyNoLint
+        - importShadow
+
+    lll: # Disabled by default
+      # Rule 2.1.2: Single line code not exceeding 160 columns
+      line-length: 160
+      tab-width: 1 # Assuming tabs are not used for indentation alignment, or are 1 space wide for lll. gofmt handles tabs.
+    funlen: # Disabled by default
+      # Rule 2.5.4: 函数长度不能超过160行
+      lines: 160
+      statements: -1 # Not specified, so disable direct statement check
+      # Rule 2.5.1: 参数数量均不能超过5个
+    nestif: # Disabled by default
+      # Rule 2.5.5: 嵌套深度不能超过4层 (min-complexity N means it flags nesting of depth N. So depth 5)
+      min-complexity: 11
+    gosec: # Disabled by default
+      # Rule
+      excludes:
+        - G101
+        - G115
+        - G404
+    mnd: # Disabled by default (was gomnd)
+      # Rule 2.5.7: Magic numbers
+      # "If magic number > 2 times, prohibit." -> mnd flags on first unignored use. Use constants.
+      # "Single occurrence of magic number needs comment." -> Use nolint with explanation.
+      ignored-numbers: [ "0", "1", "2", "3", "5", "7", "10", "0.0", "1.0", "2.0", "60", "1024", "1e6", "1000", "100", "500", "7", "24", "365", "3600", "200", "30", "300", "1", "56", "501", "8453", "43114"] # Common non-magic numbers
+      ignored-functions:
+        - args.Error
+        - flag.Arg
+        - flag.Duration
+        - flag.DurationVar
+        - flag.Float64
+        - flag.Float64Var
+        - flag.Int
+        - flag.IntVar
+        - flag.Int64
+        - flag.Int64Var
+        - flag.Uint
+        - flag.UintVar
+        - flag.Uint64
+        - flag.Uint64Var
+        - os.Chmod
+        - os.Mkdir
+        - os.MkdirAll
+        - os.OpenFile
+        - os.WriteFile
+        - prometheus.ExponentialBuckets
+        - prometheus.ExponentialBucketsRange
+        - prometheus.LinearBuckets
+        - strconv.Atoi
+        - strconv.FormatBool
+        - strconv.FormatComplex
+        - strconv.FormatFloat
+        - strconv.FormatInt
+        - strconv.FormatUint
+        - strconv.Itoa
+        - strconv.ParseBool
+        - strconv.ParseComplex
+        - strconv.ParseFloat
+        - strconv.ParseInt
+        - strconv.ParseUint
+        - strconv.Quote
+        - strconv.QuoteRune
+        - strconv.QuoteRuneToASCII
+        - strconv.QuoteRuneToGraphic
+        - strconv.QuoteToASCII
+        - strconv.QuoteToGraphic
+        - strconv.Unquote
+        - strconv.UnquoteChar
+        - time.Date
+        - time.NewTicker
+        - time.NewTimer
+        - time.Parse
+        - time.ParseDuration
+        - time.ParseInLocation
+        - time.Sleep
+        - time.Tick
+        - time.Unix
+        - time.UnixMilli
+        - time.UnixMicro
+      checks: [ argument, case, condition, operation, return, assign ]
+    errorlint: # Disabled by default (was errlint)
+      # Rule 2.1.5.1: "建议go1.13 以上，error 生成方式为：fmt.Errorf("module xxx: %w", err)"
+      errorf: true # Check for %w in fmt.Errorf
+      # assertions: true # Check that type assertions to error interface are checked (also covered by errcheck)
+      # comparison: true # Check that errors are not compared using == or != (good practice)
+    godot: # Disabled by default
+      # Rule 2.2 (general comment style), 2.2.4 (no period in var comment examples)
+      scope: comments # Check all comments
+      period: false # As per example: "// FlagConfigFile 配置文件的命令行参数名"
+      capital: false # As per example
+    nolintlint: # Disabled by default
+      allow-unused: false
+      require-explanation: true
+      require-specific: true
+    forbidigo: # Disabled by default
+      # Rule 2.1.5.2: "业务逻辑禁止使用 panic"
+      # Rule 2.4.6: "业务代码禁止使用 goto"
+      # Rule 2.5.1: "业务代码中参数类型不能是 空接口 interface{}"
+      # Enable these with caution as they can be very strict.
+      forbid:
+        # 禁止 panic（除了 main 包和测试文件）
+        - pattern: '^panic$'
+          msg: 'panic is prohibited in business logic'
+        # 禁止 goto
+        - pattern: '^goto$'
+          msg: 'goto is prohibited in business code'
+        # 禁止 interface{} 作为参数类型（在业务代码中）
+        - pattern: 'interface\{\}'
+          msg: 'interface{} parameter type is prohibited in business code, use specific interfaces or any (Go 1.18+)'
+        # 禁止使用 go-zero 自带的 db 相关能力
+        - pattern: 'github\.com/zeromicro/go-zero/core/stores'
+          msg: 'go-zero stores should not be used, use gorm in model layer instead'
+        - pattern: 'github\.com/zeromicro/go-zero/core/sqlx'
+          msg: 'go-zero sqlx should not be used, use gorm in model layer instead'
+        - pattern: 'github\.com/zeromicro/go-zero/core/sqlc'
+          msg: 'go-zero sqlc should not be used, use gorm in model layer instead'
+        - pattern: 'github\.com/zeromicro/go-zero/tools/goctl/model'
+          msg: 'go-zero model generation should not be used, use gorm models instead'
+        # 禁止使用 go-zero 的数据库连接相关
+        - pattern: '\.NewMysql'
+          msg: 'go-zero MySQL connection should not be used, use gorm instead'
+        - pattern: '\.NewPostgreSql'
+          msg: 'go-zero PostgreSQL connection should not be used, use gorm instead'
+        - pattern: '\.NewSqlConn'
+          msg: 'go-zero SqlConn should not be used, use gorm instead'
+        - pattern: 'sqlx\.NewMysql'
+          msg: 'go-zero sqlx MySQL should not be used, use gorm instead'
+        - pattern: 'sqlx\.NewPostgreSql'
+          msg: 'go-zero sqlx PostgreSQL should not be used, use gorm instead'
+        - pattern: 'sqlx\.NewSqlConn'
+          msg: 'go-zero sqlx connection should not be used, use gorm instead'
+    gocyclo: # Disabled by default
+      # Rule 2.1.6 "圈复杂度...和普通文件保持一致" (No specific value given, 10 is a translate starting point)
+      min-complexity: 20
+    loggercheck: # Disabled by default
+    # Rule 2.1.5.1 "所有新构建错误的地方，需要打印错误日志，提供原始的错误信息... log.ErrorZ(ctx, "db xxxx fail", zap.ErrorField(err))"
+    # This linter can check for consistent key-value logging.
+    # Ensure your logging library (e.g., zap) and practices are supported/configured.
+    # Example for zap, assuming keys are strings and values are of appropriate types:
+    # No specific config needed here if defaults are fine for zap.
+    # It checks for odd number of arguments for key-value pairs.
+
+    staticcheck:
+      checks:
+        - all
+        - '-QF1003'
+        - '-QF1010' # disable the rule QF1010 could convert argument to string
+        - '-QF1011'
+        - '-ST1000'
+        - '-ST1003'
+        - '-ST1012'
+        - '-ST1023'
+        - '-SA5008'
+
+    # Settings for other linters like gosec, unused, ineffassign can be added if defaults need tuning.
+    depguard:
+      rules:
+        # 禁止使用 go-zero 的 db 相关包
+        go-zero-db-restriction:
+          files:
+            - "**/*.go"
+          deny:
+            - pkg: "github.com/zeromicro/go-zero/core/stores"
+              desc: "go-zero stores package is prohibited, use gorm in model layer instead"
+            - pkg: "github.com/zeromicro/go-zero/core/stores/redis"
+              desc: "go-zero redis stores package is prohibited"
+            - pkg: "github.com/zeromicro/go-zero/core/stores/cache"
+              desc: "go-zero cache stores package is prohibited"
+            - pkg: "github.com/zeromicro/go-zero/core/stores/sqlx"
+              desc: "go-zero sqlx package is prohibited, use gorm in model layer instead"
+            - pkg: "github.com/zeromicro/go-zero/core/stores/sqlc"
+              desc: "go-zero sqlc package is prohibited, use gorm in model layer instead"
+            - pkg: "github.com/zeromicro/go-zero/core/sqlx"
+              desc: "go-zero sqlx package is prohibited, use gorm in model layer instead"
+            - pkg: "github.com/zeromicro/go-zero/core/sqlc"
+              desc: "go-zero sqlc package is prohibited, use gorm in model layer instead"
+            - pkg: "github.com/zeromicro/go-zero/tools/goctl/model"
+              desc: "go-zero model generation tools are prohibited, use gorm models instead"
+
+        # 限制 gorm 只能在特定目录使用
+        gorm-restriction:
+          files:
+            - "**/*.go"
+          deny:
+            - pkg: "gorm.io/gorm"
+              desc: "gorm should only be used in model/dao/repository layers, found in: {{.Path}}"
+            - pkg: "gorm.io/driver/mysql"
+              desc: "gorm MySQL driver should only be used in model/dao/repository layers, found in: {{.Path}}"
+            - pkg: "gorm.io/driver/postgres"
+              desc: "gorm PostgreSQL driver should only be used in model/dao/repository layers, found in: {{.Path}}"
+            - pkg: "gorm.io/driver/sqlite"
+              desc: "gorm SQLite driver should only be used in model/dao/repository layers, found in: {{.Path}}"
+
+        # 禁止直接使用 database/sql
+        database-restriction:
+          files:
+            - "**/*.go"
+          deny:
+            - pkg: "database/sql"
+              desc: "direct database/sql usage should be avoided, use gorm in model layer instead, found in: {{.Path}}"
+issues:
+  new: true
+  new-from-merge-base: master
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+
+# Notes on rules not fully covered by linters in this config:
+# - Rule 2.1.1 (gofmt) & 2.1.4 (goimports for formatting): These are external tools, not linters run by golangci-lint.
+#   It's assumed code is formatted with them before linting.
+# - Rule 2.1.4 (Import Grouping): The specific grouping order (standard, internal, third-party, anonymous)
+#   was best handled by the 'gci' linter. Since 'gci' is not in your provided list of available linters,
+#   this rule cannot be strictly enforced by golangci-lint with this configuration.
+#   `goimports -local yourprefix` (external tool) can help with some grouping.
+# - Rule 2.3.2 (File naming - lowercase with underscore): Manual check.
+# - Rule 2.5.4 (File length - 800 lines / 1600 for tests): Not typically checked by golangci-lint linters.
+# - Many architectural rules (e.g., dependency inversion, DB model structure) require manual review.
+# - Specific logging content (e.g., "提供原始的错误信息") beyond key-value structure is mostly manual.
+
+formatters:
+  # Enable specific formatter.
+  # Default: [] (uses standard Go formatting)
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard # Standard section: captures all standard packages.
+        - default # Default section: contains all imports that could not be matched to another section type.
+        - prefix(github.com/su-los/) # Custom section: groups all imports with the specified Prefix.
+        - localmodule
+    # Formatters settings.

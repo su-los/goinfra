@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# =============================================================================
+#  Go 项目 pre-commit hook（可执行入口）
+#  核心逻辑全部在 pre-commit.lib.sh 中，便于复用、测试、维护
+# =============================================================================
+
+set -euo pipefail
+IFS=$'\n\t'
+
+# 强制实时输出：在可用时将标准错误直接写入控制终端（绕过 cz 缓冲）
+if [ -c /dev/tty ] && [ -w /dev/tty ]; then
+    exec 2>/dev/tty
+fi
+# 将标准输出重定向到标准错误（如果可用，现在已绑定到终端）
+exec 1>&2
+
+# ---------- 强制 Bash 5+ ----------
+# bash -c 'echo $BASH_VERSION' 获取当前 Bash 版本信息数组
+# 手动执行时需要使用 /opt/homebrew/bin/bash 或其他路径
+# 参见：https://stackoverflow.com/questions/29060076/how-to-get-bash-version-number-in-os-x
+
+BASH_VERSION=$(bash -c 'echo $BASH_VERSION' | cut -d. -f1)
+
+if [[ ${BASH_VERSION:-0} -lt 5 ]]; then
+    cat >&2 <<'EOF'
+
+检测到 Bash 版本过低（需要 5.1+），当前：${BASH_VERSION}
+请安装新版 Bash 并设置：
+    brew install bash
+    git config --global core.hooksInterpreter /opt/homebrew/bin/bash
+或直接修改本文件 shebang 路径
+
+EOF
+    exit 1
+fi
+
+# 强制 UTF-8（解决乱码）
+export LANG=${LANG:-en_US.UTF-8}
+export LC_ALL=$LANG
+export LC_CTYPE=$LANG
+
+# ---------- 强制使用 Bash 5+ ----------
+if [[ ${BASH_VERSINFO[0]:-0} -lt 5 ]]; then
+    printf '\n%s\n' "检测到 Bash 版本过低（需要 5.1+），当前：$BASH_VERSION" >&2
+    printf '%s\n' "请执行：brew install bash && git config --global core.hooksInterpreter /opt/homebrew/bin/bash" >&2
+    exit 1
+fi
+
+# ---------- 加载核心库 ----------
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+LIB_FILE="$REPO_ROOT/.hooks/lib/pre-commit.lib.sh"
+
+if [[ ! -f "$LIB_FILE" ]]; then
+    real_log "错误：未找到核心库 $LIB_FILE"
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$LIB_FILE"
+
+# ---------- 参数解析 ----------
+pre_commit::run "$@"
