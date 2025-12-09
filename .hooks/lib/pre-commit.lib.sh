@@ -2,7 +2,6 @@
 # =============================================================================
 #  Go 项目 pre-commit 核心逻辑库（完全模块化、可被其他项目 import）
 #  使用方式：source 本文件后调用 pre_commit::run
-#  git config core.hooksPath .hook
 # =============================================================================
 
 pre_commit::log() {
@@ -46,7 +45,7 @@ pre_commit::spinner() {
     wait "$pid" 2>/dev/null; ret=$?
     # 判断 $msg 是否为空，避免多余的空行
     [[ -z "$msg" ]] && return $ret
-    
+
     if (( ret == 0 )); then
         # 可替代符号 ✓s
         printf '\r\033[32m✓\033[0m %s \033[32m成功\033[0m\n' "$msg" >&2
@@ -158,7 +157,7 @@ pre_commit::should_process_dir() {
     # --skip-dirs
     for d in "${SKIP_DIRS[@]}"; do
         d=$(echo "$d" | xargs)  # 去除前后空格
-        if [[ "$dir" == *"$d"* ]]; then
+        if [[ "$dir" == "$d" ]]; then
             return 1
         fi
     done
@@ -166,45 +165,50 @@ pre_commit::should_process_dir() {
     return 0
 }
 
-# 增量构建
-#
-# @param staged 变更的文件列表，通过参数传入
-# @return 无
-pre_commit::incremental_build() {
-    # 获取参数
+# 根据变更文件获取构建目标
+pre_commit::get_build_targets() {
     local -a staged=("$@")
     local -a targets=()
     for f in "${staged[@]}"; do
         case "$f" in
-            consumer/exhibition-sync/*)      targets+=(exhibit-sync) ;;
-            consumer/gemdrop-indexer/*)      targets+=(gemdrop-indexer) ;;
-            consumer/gemdrop-cleaning/*)     targets+=(gemdrop-cleaning) ;;
+            #xxx/xx/*)      targets+=(xxx) ;;
             # 其他变更不触发构建
             *) ;;
         esac
     done
 
+    # 去重（如果为空会导致 targets 中加入一个空元素）
+    mapfile -t targets < <(printf '%s\n' "${targets[@]}" | sort -u)
+    printf '%s\n' "${targets[@]}"
+}
+
+# 增量构建
+#
+# @param staged 变更的文件列表，通过参数传入
+# @return 无
+pre_commit::incremental_build() {
+    local -a targets=()
+    mapfile -t targets < <(pre_commit::get_build_targets "$@")
+
     # 为空则退出
     (( ${#targets[@]} == 0 )) && return
 
-    # 去重（如果为空会导致 targets 中加入一个空元素）
-    mapfile -t targets < <(printf '%s\n' "${targets[@]}" | sort -u)
-    if (( ${#targets[@]} > 0 )); then
-        (
-            for t in "${targets[@]}"; do
-                local TMP_LOG
-                TMP_LOG=$(mktemp) || exit 1
+    (
+        for buildtg in "${targets[@]}"; do
+            [[ -z "$buildtg" ]] && continue
 
-                pre_commit::log " $t \033[32m✓\033[0m"
-                if ! make -j "$t" >> "$TMP_LOG" 2>&1; then
-                    pre_commit::log "\n$(cat "$TMP_LOG")"
-                    pre_commit::fail "构建 $t 失败，请修复后重新提交"
-                fi
-                rm -f "$TMP_LOG"
-            done
-            exit 0                          # 成功
-        ) & pre_commit::spinner "构建" $! # $! 表示后台任务的 PID，用于 spinner 跟踪
-    fi
+            local TMP_LOG
+            TMP_LOG=$(mktemp) || exit 1
+
+            pre_commit::log " $buildtg \033[32m✓\033[0m"
+            if ! make -j "$buildtg" >> "$TMP_LOG" 2>&1; then
+                pre_commit::log "\n$(cat "$TMP_LOG")"
+                pre_commit::fail "构建 $buildtg 失败，请修复后重新提交"
+            fi
+            rm -f "$TMP_LOG"
+        done
+        exit 0                          # 成功
+    ) & pre_commit::spinner "构建" $! # $! 表示后台任务的 PID，用于 spinner 跟踪
 }
 
 # 处理 go 文件：gofumpt、gci、golangci-lint
@@ -215,98 +219,119 @@ pre_commit::process_go_files() {
     local -a staged=("$@")
     local -a go_files=()
     for f in "${staged[@]}"; do [[ "$f" == *.go ]] && go_files+=("$f"); done
-    if (( ${#go_files[@]} > 0 )); then
-        (
-            for f in "${go_files[@]}"; do
-                pre_commit::log " $f \033[32m✓\033[0m"
 
-                gofumpt -w "$f"
-                gci write -s standard -s default -s "prefix(bitbucket.kucoin.net)" -s localmodule --skip-generated "$f"
-            done
-            printf '%s\0' "${go_files[@]}" | xargs -0 git add >/dev/null 2>&1
-        ) & pre_commit::spinner "格式化" $!
+    [[ ${#go_files[@]} == 0 ]] && return
+    (
+        for f in "${go_files[@]}"; do
+            pre_commit::log " $f \033[32m✓\033[0m"
+
+            gofumpt -w "$f"
+            gci write -s standard -s default -s "prefix(bitbucket.kucoin.net)" -s localmodule --skip-generated "$f"
+        done
+        printf '%s\0' "${go_files[@]}" | xargs -0 git add >/dev/null 2>&1
+    ) & pre_commit::spinner "格式化" $!
+
+    if (( SKIP_LINT == 1 )); then
+        pre_commit::success "跳过 Lint 检查"
+        return
     fi
 
     # Lint 检查
-    if (( SKIP_LINT == 0 && ${#go_files[@]} > 0 )); then
-        mapfile -t dirs < <(printf '%s\n' "${go_files[@]}" | xargs dirname | sort -u)
-        local -a lint_dirs=()
-        for lintd in "${dirs[@]}"; do
-            if pre_commit::should_process_dir "$lintd"; then
-                lint_dirs+=("$lintd")
-            fi
-        done
-
-        # 去重
-        mapfile -t lint_dirs < <(printf '%s\n' "${lint_dirs[@]}" | sort -u)
-
-        if (( ${#lint_dirs[@]} > 0 )); then
-            (
-                for d in "${lint_dirs[@]}"; do
-                    # 跳过目录名为空的情况
-                    [[ -z "$d" ]] && continue
-
-                    local TMP_LOG
-                    TMP_LOG=$(mktemp) || exit 1
-
-                    pre_commit::log " $d/... \033[32m✓\033[0m"
-                    if ! golangci-lint run --config .golangci.yml --fix "$d" >> "$TMP_LOG" 2>&1; then
-                        pre_commit::log "\n$(cat "$TMP_LOG")"
-                        pre_commit::fail "Lint 检查失败，请修复后重新提交"
-                    fi
-                    rm -f "$TMP_LOG"
-                done
-                exit 0                          # 成功
-            ) & pre_commit::spinner "Lint" $! # $! 表示后台任务的 PID，用于 spinner 跟踪
-            for f in "${go_files[@]}"; do git diff --quiet "$f" 2>/dev/null || git add "$f" >/dev/null; done
-        else
-            pre_commit::success "所有变更目录均被跳过，跳过 Lint"
+    mapfile -t dirs < <(printf '%s\n' "${go_files[@]}" | xargs dirname | sort -u)
+    local -a lint_dirs=()
+    for lintd in "${dirs[@]}"; do
+        if pre_commit::should_process_dir "$lintd"; then
+            lint_dirs+=("$lintd")
         fi
-    fi
+    done
+
+    # 去重
+    mapfile -t lint_dirs < <(printf '%s\n' "${lint_dirs[@]}" | sort -u)
+    [[ ${#lint_dirs[@]} == 0 ]] && return
+    (
+        for d in "${lint_dirs[@]}"; do
+            # 跳过目录名为空的情况
+            [[ -z "$d" ]] && continue
+
+            local TMP_LOG
+            TMP_LOG=$(mktemp) || exit 1
+
+            pre_commit::log " $d/... \033[32m✓\033[0m"
+            if ! golangci-lint run --config .golangci.yml --fix "$d" >> "$TMP_LOG" 2>&1; then
+                pre_commit::log "\n$(cat "$TMP_LOG")"
+                pre_commit::fail "Lint 检查失败，请修复后重新提交"
+            fi
+            rm -f "$TMP_LOG"
+        done
+        exit 0                          # 成功
+    ) & pre_commit::spinner "Lint" $! # $! 表示后台任务的 PID，用于 spinner 跟踪
+    for f in "${go_files[@]}"; do git diff --quiet "$f" 2>/dev/null || git add "$f" >/dev/null; done
 }
 
 # 运行 go test
 pre_commit::run_tests() {
     local -a staged=("$@")
 
-    if (( SKIP_TESTS == 0 )); then
-        local -a test_dirs=()
-        for f in "${staged[@]}"; do
-            [[ "$f" == *_test.go ]] && test_dirs+=("$(dirname "$f")")
-        done
-        mapfile -t test_dirs < <(printf '%s\n' "${test_dirs[@]}" | sort -u)
-        local -a final_test_dirs=()
-        for d in "${test_dirs[@]}"; do
-            pre_commit::should_process_dir "$d" && final_test_dirs+=("$d")
-        done
-
-        if (( ${#final_test_dirs[@]} == 0 )); then
-            pre_commit::success "无测试目录需要运行"
-            return
-        fi
-
-        if (( ${#final_test_dirs[@]} > 0 )); then
-            (
-                for d in "${final_test_dirs[@]}"; do
-                    [[ -z "$d" ]] && continue
-
-                    local TMP_LOG
-                    TMP_LOG=$(mktemp) || exit 1
-                    pre_commit::log " $d \033[32m✓\033[0m"
-
-                    # 输出到临时日志文件，避免干扰 spinner，错误时输出日志内容
-                    if ! go test -gcflags=all=-l -race -v -short -failfast -parallel=1 -count=1 "./$d/..." >> "$TMP_LOG" 2>&1; then
-                        pre_commit::log "\n$(cat "$TMP_LOG")"
-                        pre_commit::fail "单元测试失败，请修复后重新提交"
-                    fi
-                    rm -f "$TMP_LOG"
-                done
-
-                exit 0                          # 成功
-            ) & pre_commit::spinner "测试" $!
-        fi
+    if (( SKIP_TESTS == 1 )); then
+        pre_commit::success "跳过单元测试"
+        return
     fi
+
+    local -a test_dirs=()
+    for f in "${staged[@]}"; do
+        if [[ "$f" == *_test.go ]]; then
+            test_dirs+=("$(dirname "$f")")
+        elif [[ "$f" == *.go ]]; then
+            # 查找对应目录下是否有 *_test.go 文件
+            local dir
+            dir=$(dirname "$f")
+            if find "$dir" -maxdepth 1 -name '*_test.go' | grep -q .; then
+                test_dirs+=("$dir")
+            fi
+        fi
+    done
+
+    # 去重并过滤目录
+    mapfile -t test_dirs < <(printf '%s\n' "${test_dirs[@]}" | sort -u)
+    local -a final_test_dirs=()
+    for testd in "${test_dirs[@]}"; do
+        pre_commit::should_process_dir "$testd" && final_test_dirs+=("$testd")
+    done
+
+    [[ ${#final_test_dirs[@]} == 0 ]] && return
+    (
+        for final_dir in "${final_test_dirs[@]}"; do
+            [[ -z "$final_dir" ]] && continue
+
+            # 列出每一个单测用例（Test*）逐个执行
+            test_funcs=$(go test -list '^Test' ./"$final_dir" | grep '^Test')
+            [[ -z "$test_funcs" ]] && continue
+
+            local TMP_LOG
+            TMP_LOG=$(mktemp) || exit 1
+            pre_commit::log " $final_dir \033[32m✓\033[0m"
+
+            for test_func in $test_funcs; do
+                [[ -z "$test_func" ]] && continue
+
+                if ! go test -gcflags=all=-l -race -v -short -failfast -parallel=1 -count=1 -run "^${test_func}$" "./$final_dir" >> "$TMP_LOG" 2>&1; then
+                    pre_commit::log "\n$(cat "$TMP_LOG")"
+                    pre_commit::fail "单元测试失败，请修复后重新提交"
+                fi
+            done
+            rm -f "$TMP_LOG"
+        done
+        exit 0                          # 成功
+    ) &
+
+    # 启动 spinner，错误时输出日志内容
+    # ctrl + c 时中断 spinner 并退出
+    local bg_pid=$!
+    trap 'kill $bg_pid 2>/dev/null; exit 130' INT
+    pre_commit::spinner "测试" $bg_pid
+    trap - INT
 }
+
 
 pre_commit::run() {
     pre_commit::parse_args "$@"
@@ -321,8 +346,8 @@ pre_commit::run() {
 
     pre_commit::check_tools
 
-    # 增量构建（没有需要构建的）
-    # pre_commit::incremental_build "${staged[@]}"
+    # 增量构建
+    pre_commit::incremental_build "${staged[@]}"
 
     # 处理 Go 文件
     pre_commit::process_go_files "${staged[@]}"

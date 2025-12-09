@@ -541,7 +541,7 @@ linters:
               desc: "direct database/sql usage should be avoided, use gorm in model layer instead, found in: {{.Path}}"
 issues:
   new: true
-  new-from-merge-base: master
+  new-from-merge-base: main
   max-issues-per-linter: 0
   max-same-issues: 0
 

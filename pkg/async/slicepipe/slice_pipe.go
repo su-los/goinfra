@@ -13,16 +13,16 @@ import (
 func SlicePipeline[T any](
 	ctx context.Context,
 	datas []T, // 需要并发处理的数据切片
-	gocnt int, // 并发协程数
+	workerCount int, // 并发协程数
 	handler func(ctx context.Context, data T) error, // 每个数据的处理函数
 ) error {
 	done := make(chan struct{})
 	defer close(done)
 
-	jobs := distribute(ctx, done, datas, gocnt)
+	jobs := distribute(ctx, done, datas, workerCount)
 
 	var errgp errgroup.Group
-	for range gocnt {
+	for range workerCount {
 		errgp.Go(func(ctx context.Context) error {
 			return wrapHandler(ctx, done, jobs, handler)
 		})
@@ -40,9 +40,10 @@ func distribute[T any](
 	ctx context.Context,
 	done <-chan struct{},
 	datas []T,
-	gocnt int,
+	workerCount int,
 ) <-chan T {
-	jobs := make(chan T, gocnt)
+	// 通过将 workerCount 作为通道的缓冲区大小，限制执行任务的并发协程的数量
+	jobs := make(chan T, workerCount)
 	goroutine.Go(ctx, func() error {
 		defer close(jobs)
 		for i := range datas {
@@ -73,7 +74,7 @@ func wrapHandler[T any](
 		case <-done:
 			return nil
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case job, ok := <-jobs:
 			if !ok {
 				return nil

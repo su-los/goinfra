@@ -88,9 +88,7 @@ func TestWrapHandlerContextCanceled(t *testing.T) {
 
 	select {
 	case err := <-errCh:
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(time.Second):
 		t.Fatal("wrapHandler did not return after context cancellation")
 	}
